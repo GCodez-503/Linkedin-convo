@@ -1,0 +1,11 @@
+{
+  "name": "LinkedIn InMail Panel",
+  "short_name": "InMail Panel",
+  "description": "Side-panel InMail sequences for Salesforce cold outreach",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117"
+}

@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InMail Panel — Salesforce</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --border:#2a3441;
+    --text:#e6edf3; --muted:#8b949e; --accent:#388bfd; --accent2:#1f6feb;
+    --name:#f0883e; --copied:#3fb950; --danger:#f85149;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:14px; display:flex; justify-content:center;
+  }
+  .app{width:100%; max-width:440px; height:100vh; display:flex; flex-direction:column; padding:12px 12px 8px}
+  .topbar{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px}
+  h1{font-size:12px; letter-spacing:.5px; text-transform:uppercase; color:var(--muted); font-weight:600}
+  /* tabs */
+  .tabs{display:flex; gap:4px}
+  .tab{background:var(--panel); border:1px solid var(--border); color:var(--muted); font-size:11px; font-weight:600;
+    padding:5px 11px; border-radius:7px; cursor:pointer; transition:.12s}
+  .tab:hover{border-color:var(--accent)}
+  .tab.active{background:var(--accent2); color:#fff; border-color:var(--accent2)}
+  /* shared controls */
+  select, textarea, input{font-family:inherit; font-size:14px; color:var(--text); background:var(--panel);
+    border:1px solid var(--border); border-radius:8px; padding:9px 10px; width:100%}
+  select{cursor:pointer; appearance:none; background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+    background-position:calc(100% - 16px) 17px,calc(100% - 11px) 17px; background-size:5px 5px,5px 5px; background-repeat:no-repeat; padding-right:30px}
+  select:focus,textarea:focus,input:focus{outline:none; border-color:var(--accent)}
+  textarea{resize:none; line-height:1.5}
+  .view{display:none; flex:1; flex-direction:column; min-height:0}
+  .view.active{display:flex}
+  /* SEND view */
+  .nums{display:flex; gap:5px; margin:10px 0 11px}
+  .num{flex:1; background:var(--panel); border:1px solid var(--border); color:var(--text); padding:8px 0;
+    border-radius:8px; cursor:pointer; font-size:14px; font-weight:700; transition:.12s}
+  .num:hover{border-color:var(--accent)}
+  .num.active{background:var(--accent); color:#fff; border-color:var(--accent)}
+  .topic{font-size:11px; color:var(--muted); margin-bottom:8px}
+  .topic b{color:var(--text); font-weight:600}
+  .label-row{display:flex; align-items:center; justify-content:space-between; margin-bottom:5px}
+  .label{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; display:flex; gap:6px; align-items:center}
+  .style-tag{font-size:9px; padding:2px 7px; border-radius:10px; background:var(--panel2); border:1px solid var(--border);
+    color:var(--muted); text-transform:capitalize; letter-spacing:0}
+  .box{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:11px; margin-bottom:11px}
+  .box.subject{font-weight:600}
+  .box.body{flex:1; overflow:auto; line-height:1.55; min-height:0}
+  .btn{background:var(--panel2); border:1px solid var(--border); color:var(--text); font-size:11px; font-weight:600;
+    padding:5px 11px; border-radius:6px; cursor:pointer; transition:.12s}
+  .btn:hover{border-color:var(--accent); color:var(--accent)}
+  .btn.copied{background:var(--copied); border-color:var(--copied); color:#0d1117}
+  .btn.danger:hover{border-color:var(--danger); color:var(--danger)}
+  .send-row{display:flex; gap:7px; margin-top:auto; padding-top:4px}
+  .send-btn{flex:1; background:var(--accent2); border:1px solid var(--accent2); color:#fff; font-size:13px;
+    font-weight:700; padding:11px; border-radius:9px; cursor:pointer; transition:.12s}
+  .send-btn:hover{background:var(--accent)}
+  .send-btn.copied{background:var(--copied); border-color:var(--copied); color:#0d1117}
+  .name-ph{color:var(--name); font-weight:700; background:rgba(240,136,62,.13); padding:0 3px; border-radius:3px}
+  .foot{font-size:10px; color:var(--muted); text-align:center; padding-top:6px}
+  /* EDIT / ADD views */
+  .field{margin-bottom:10px}
+  .field label{display:block; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:5px}
+  .row2{display:flex; gap:7px}
+  .row2 > *{flex:1}
+  .btn-row{display:flex; gap:7px; margin-top:4px}
+  .hint{font-size:10px; color:var(--muted); margin-top:6px; line-height:1.4}
+  .scrollwrap{flex:1; overflow:auto; min-height:0; padding-right:2px}
+  .edited-flag{font-size:9px; color:var(--name); font-weight:600; margin-left:6px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <h1>InMail — Salesforce</h1>
+    <div class="tabs">
+      <button class="tab active" data-view="send">Send</button>
+      <button class="tab" data-view="edit">Edit</button>
+      <button class="tab" data-view="add">Add</button>
+    </div>
+  </div>
+
+  <!-- ============ SEND VIEW ============ -->
+  <div class="view active" id="view-send">
+    <select id="persona"></select>
+    <div class="nums" id="nums"></div>
+    <div class="topic" id="topic"></div>
+
+    <div class="label-row">
+      <span class="label">Subject <span class="style-tag" id="styleTag"></span><span class="edited-flag" id="editedFlag"></span></span>
+      <button class="btn" id="copySubject">Copy</button>
+    </div>
+    <div class="box subject" id="subjectBox"></div>
+
+    <div class="label-row">
+      <span class="label">Message</span>
+      <button class="btn" id="copyBody">Copy</button>
+    </div>
+    <div class="box body" id="bodyBox"></div>
+
+    <div class="send-row">
+      <button class="send-btn" id="sendBtn">Copy message + open LinkedIn</button>
+    </div>
+    <div class="foot">Swap the highlighted <span class="name-ph">[Name]</span> before sending · keys 1–6 jump messages</div>
+  </div>
+
+  <!-- ============ EDIT VIEW ============ -->
+  <div class="view" id="view-edit">
+    <div class="scrollwrap">
+      <div class="row2">
+        <div class="field"><label>Persona</label><select id="editPersona"></select></div>
+        <div class="field"><label>Message</label><select id="editNum"></select></div>
+      </div>
+      <div class="field"><label>Subject</label><input id="editSubject" type="text"></div>
+      <div class="field"><label>Message body</label><textarea id="editBody" rows="8"></textarea></div>
+      <div class="btn-row">
+        <button class="btn" id="editSave">Save changes</button>
+        <button class="btn danger" id="editResetOne">Reset this message</button>
+        <button class="btn danger" id="editResetAll">Reset all</button>
+      </div>
+      <div class="hint">Edits save in this browser and override the defaults in data/sequences.js. Keep <span class="name-ph">[Name]</span> in the text so it stays highlighted. Reset restores the original copy.</div>
+    </div>
+  </div>
+
+  <!-- ============ ADD VIEW ============ -->
+  <div class="view" id="view-add">
+    <div class="scrollwrap">
+      <div class="field"><label>Subject line</label><input id="addSubject" type="text" placeholder="Your subject..."></div>
+      <div class="field"><label>Message body</label><textarea id="addBody" rows="9" placeholder="Write your own InMail. Use [Name] and it'll be highlighted in the preview."></textarea></div>
+      <div class="label-row"><span class="label">Preview</span></div>
+      <div class="box body" id="addPreview" style="max-height:120px"></div>
+      <div class="btn-row">
+        <button class="send-btn" id="addSend" style="flex:1">Copy message + open LinkedIn</button>
+        <button class="btn" id="addCopySubject">Copy subject</button>
+      </div>
+      <div class="hint">For a one-off message you don't want to save. To keep a message permanently, add it to data/sequences.js.</div>
+    </div>
+  </div>
+</div>
+
+<script src="data/sequences.js"></script>
+<script>
+const LS_KEY = "inmail_edits_v1";
+const $ = id => document.getElementById(id);
+let edits = {};
+try { edits = JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch(e){ edits = {}; }
+function saveEdits(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(edits)); }catch(e){} }
+const ekey = (pid, num) => pid + "|" + num;
+
+let pIdx = 0, mIdx = 0;
+
+// resolve a message with any saved override applied
+function getMsg(pIdx, mIdx){
+  const p = SEQUENCES[pIdx];
+  const base = p.messages[mIdx];
+  const ov = edits[ekey(p.id, base.number)];
+  return {
+    number: base.number, topic: base.topic, subjectStyle: base.subjectStyle,
+    subject: ov ? ov.subject : base.subject,
+    body: ov ? ov.body : base.body,
+    edited: !!ov
+  };
+}
+function highlight(t){ return t.replace(/\[Name\]/g, '<span class="name-ph">[Name]</span>'); }
+
+/* ---------- persona dropdown (grouped) ---------- */
+function buildPersonaSelect(sel){
+  sel.innerHTML = "";
+  SEQ_GROUPS.forEach(g => {
+    const og = document.createElement("optgroup"); og.label = g;
+    SEQUENCES.forEach((p,i) => {
+      if(p.group !== g) return;
+      const o = document.createElement("option"); o.value = i; o.textContent = p.label;
+      og.appendChild(o);
+    });
+    sel.appendChild(og);
+  });
+}
+
+/* ---------- SEND view ---------- */
+function renderNums(){
+  $("nums").innerHTML = SEQUENCES[pIdx].messages.map((m,i)=>
+    `<button class="num ${i===mIdx?'active':''}" data-i="${i}">${m.number}</button>`).join("");
+}
+function renderSend(){
+  const m = getMsg(pIdx, mIdx);
+  $("topic").innerHTML = `Topic: <b>${m.topic}</b>`;
+  $("styleTag").textContent = m.subjectStyle;
+  $("editedFlag").textContent = m.edited ? "edited" : "";
+  $("subjectBox").innerHTML = highlight(m.subject);
+  $("bodyBox").innerHTML = highlight(m.body);
+  $("copySubject").textContent="Copy"; $("copySubject").classList.remove("copied");
+  $("copyBody").textContent="Copy"; $("copyBody").classList.remove("copied");
+  $("sendBtn").textContent="Copy message + open LinkedIn"; $("sendBtn").classList.remove("copied");
+}
+function renderSendAll(){ renderNums(); renderSend(); }
+
+async function copyText(text){
+  try{ await navigator.clipboard.writeText(text); }
+  catch(e){ const t=document.createElement("textarea"); t.value=text; document.body.appendChild(t); t.select(); document.execCommand("copy"); t.remove(); }
+}
+function flash(btn, label){ const o=btn.textContent; btn.textContent=label; btn.classList.add("copied");
+  setTimeout(()=>{btn.textContent=o; btn.classList.remove("copied");},1200); }
+
+$("persona").addEventListener("change", e=>{ pIdx=+e.target.value; mIdx=0; renderSendAll(); });
+$("nums").addEventListener("click", e=>{ const b=e.target.closest(".num"); if(!b) return; mIdx=+b.dataset.i; renderSendAll(); });
+$("copySubject").addEventListener("click", async ()=>{ await copyText(getMsg(pIdx,mIdx).subject); flash($("copySubject"),"Copied!"); });
+$("copyBody").addEventListener("click", async ()=>{ await copyText(getMsg(pIdx,mIdx).body); flash($("copyBody"),"Copied!"); });
+$("sendBtn").addEventListener("click", async ()=>{
+  await copyText(getMsg(pIdx,mIdx).body);
+  flash($("sendBtn"),"Copied! Opening LinkedIn…");
+  window.open("https://www.linkedin.com/messaging/", "_blank", "noopener");
+});
+
+/* ---------- tab switching ---------- */
+document.querySelectorAll(".tab").forEach(t=>{
+  t.addEventListener("click", ()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+    document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+    $("view-"+t.dataset.view).classList.add("active");
+    if(t.dataset.view==="edit") loadEditForm();
+  });
+});
+
+/* ---------- EDIT view ---------- */
+function loadEditForm(){
+  const ep = $("editPersona"); const en = $("editNum");
+  const pi = +ep.value; const mi = +en.value;
+  const m = getMsg(pi, mi);
+  $("editSubject").value = m.subject;
+  $("editBody").value = m.body;
+}
+$("editPersona").addEventListener("change", ()=>{ syncEditNums(); loadEditForm(); });
+$("editNum").addEventListener("change", loadEditForm);
+function syncEditNums(){
+  const pi = +$("editPersona").value;
+  $("editNum").innerHTML = SEQUENCES[pi].messages.map((m,i)=>`<option value="${i}">${m.number} — ${m.topic}</option>`).join("");
+}
+$("editSave").addEventListener("click", ()=>{
+  const pi=+$("editPersona").value, mi=+$("editNum").value;
+  const p=SEQUENCES[pi], num=p.messages[mi].number;
+  edits[ekey(p.id,num)] = { subject:$("editSubject").value, body:$("editBody").value };
+  saveEdits();
+  if(pi===pIdx) renderSend();
+  flash($("editSave"),"Saved!");
+});
+$("editResetOne").addEventListener("click", ()=>{
+  const pi=+$("editPersona").value, mi=+$("editNum").value;
+  const p=SEQUENCES[pi], num=p.messages[mi].number;
+  delete edits[ekey(p.id,num)]; saveEdits(); loadEditForm();
+  if(pi===pIdx) renderSend();
+  flash($("editResetOne"),"Reset");
+});
+$("editResetAll").addEventListener("click", ()=>{
+  if(!confirm("Reset ALL edits back to the originals?")) return;
+  edits={}; saveEdits(); loadEditForm(); renderSend();
+  flash($("editResetAll"),"All reset");
+});
+
+/* ---------- ADD view ---------- */
+function renderAddPreview(){
+  const b=$("addBody").value || "Your message preview will show here…";
+  $("addPreview").innerHTML = highlight(b);
+}
+$("addBody").addEventListener("input", renderAddPreview);
+$("addSend").addEventListener("click", async ()=>{
+  await copyText($("addBody").value);
+  flash($("addSend"),"Copied! Opening LinkedIn…");
+  window.open("https://www.linkedin.com/messaging/", "_blank", "noopener");
+});
+$("addCopySubject").addEventListener("click", async ()=>{ await copyText($("addSubject").value); flash($("addCopySubject"),"Copied!"); });
+
+/* ---------- keyboard: 1-6 jumps message (Send view only) ---------- */
+document.addEventListener("keydown", e=>{
+  if($("view-send").classList.contains("active") && document.activeElement.tagName!=="TEXTAREA" && document.activeElement.tagName!=="INPUT"){
+    if(e.key>="1" && e.key<="6"){ const i=+e.key-1; if(i<SEQUENCES[pIdx].messages.length){ mIdx=i; renderSendAll(); } }
+  }
+});
+
+/* ---------- init ---------- */
+buildPersonaSelect($("persona"));
+buildPersonaSelect($("editPersona"));
+syncEditNums();
+renderSendAll();
+renderAddPreview();
+</script>
+</body>
+</html>
